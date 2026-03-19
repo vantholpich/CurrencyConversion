@@ -11,7 +11,7 @@ const USD_COLOR = '#0A3161';
 export default function Index() {
   const insets = useSafeAreaInsets();
   
-  const [amount, setAmount] = useState('4000');
+  const [amount, setAmount] = useState('1');
   const [convertedAmount, setConvertedAmount] = useState('0.00');
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [isAudToUsd, setIsAudToUsd] = useState(true); // Left side is AUD, right is USD
@@ -103,7 +103,7 @@ export default function Index() {
         {/* LEFT PANEL */}
         <View style={[styles.panel, { backgroundColor: leftBgColor, paddingTop: insets.top }]}>
           <View style={styles.headerRowLeft}>
-            <Text style={[styles.headerLogo, { color: leftTextColor }]}>¢uanto</Text>
+            <Text style={[styles.headerLogo, { color: leftTextColor }]}>AUDxUSD</Text>
           </View>
           <View style={styles.currencyDisplay}>
             <View style={styles.currencyLabelRow}>
@@ -119,7 +119,6 @@ export default function Index() {
         {/* RIGHT PANEL */}
         <View style={[styles.panel, { backgroundColor: rightBgColor, paddingTop: insets.top }]}>
           <View style={styles.headerRowRight}>
-            <Text style={[styles.headerSettings, { color: rightSubTextColor }]}>settings</Text>
           </View>
           <View style={styles.currencyDisplay}>
             <View style={styles.currencyLabelRow}>
