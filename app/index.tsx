@@ -32,9 +32,10 @@ export default function Index() {
     try {
       const from = isAudToUsd ? 'AUD' : 'USD';
       const to = isAudToUsd ? 'USD' : 'AUD';
-      const response = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`);
+      const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${from}`);
       const data = await response.json();
       setExchangeRate(data.rates[to]);
+      console.log(exchangeRate)
     } catch (error) {
       console.error('Error fetching rate', error);
       // Fallbacks roughly matching the image
