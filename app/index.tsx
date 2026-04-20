@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, StatusBar, Dimensions, Modal, FlatList, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, StatusBar, Dimensions, Modal, FlatList, TextInput, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, withSequence, FadeIn, FadeOut } from 'react-native-reanimated';
-import { CURRENCIES, getCurrencyByCode, Currency } from '../constants/currencies';
+import { CURRENCIES, getCurrencyByCode, Currency, getFlagUrl } from '../constants/currencies';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -141,7 +141,10 @@ export default function Index() {
           </View>
           <View style={styles.currencyDisplay}>
             <View style={styles.currencyLabelRow}>
-               <Text style={styles.flagIcon}>{leftCurrency.flag}</Text>
+               <Image 
+                 source={{ uri: getFlagUrl(leftCurrency.countryCode) }} 
+                 style={styles.flagImage} 
+               />
                <Text style={[styles.currencyLabel, { color: leftSubTextColor }]}>{leftCurrency.code}</Text>
                <Ionicons name="chevron-down" size={14} color={leftSubTextColor} style={{ marginLeft: 4 }} />
             </View>
@@ -161,7 +164,10 @@ export default function Index() {
           </View>
           <View style={styles.currencyDisplay}>
             <View style={styles.currencyLabelRow}>
-               <Text style={styles.flagIcon}>{rightCurrency.flag}</Text>
+               <Image 
+                 source={{ uri: getFlagUrl(rightCurrency.countryCode) }} 
+                 style={styles.flagImage} 
+               />
                <Text style={[styles.currencyLabel, { color: rightSubTextColor }]}>{rightCurrency.code}</Text>
                <Ionicons name="chevron-down" size={14} color={rightSubTextColor} style={{ marginLeft: 4 }} />
             </View>
@@ -258,7 +264,10 @@ export default function Index() {
                   onPress={() => selectCurrency(item)}
                 >
                   <View style={[styles.itemIcon, { backgroundColor: item.color }]}>
-                    <Text style={styles.itemFlag}>{item.flag}</Text>
+                    <Image 
+                      source={{ uri: getFlagUrl(item.countryCode) }} 
+                      style={styles.itemFlagImage} 
+                    />
                   </View>
                   <View style={styles.itemTextContainer}>
                     <Text style={styles.itemCode}>{item.code}</Text>
@@ -313,9 +322,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  flagIcon: {
-    fontSize: 16,
-    marginRight: 6,
+  flagImage: {
+    width: 24,
+    height: 16,
+    borderRadius: 2,
+    marginRight: 8,
   },
   currencyLabel: {
     fontSize: 18,
@@ -463,8 +474,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  itemFlag: {
-    fontSize: 22,
+  itemFlagImage: {
+    width: 28,
+    height: 20,
+    borderRadius: 2,
   },
   itemTextContainer: {
     flex: 1,
