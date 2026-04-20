@@ -1,12 +1,9 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, StatusBar, Dimensions } from 'react-native';
+import { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, StatusBar, Dimensions, Modal, FlatList, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing, withSpring, withSequence } from 'react-native-reanimated';
-
-// Sample colors based on the image
-const AUD_COLOR = '#FFCD00';
-const USD_COLOR = '#0A3161';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, withSequence, FadeIn, FadeOut } from 'react-native-reanimated';
+import { CURRENCIES, getCurrencyByCode, Currency } from '../constants/currencies';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -14,38 +11,52 @@ export default function Index() {
   const [amount, setAmount] = useState('1');
   const [convertedAmount, setConvertedAmount] = useState('0.00');
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
-  const [isAudToUsd, setIsAudToUsd] = useState(true); // Left side is AUD, right is USD
+  const [leftCurrencyCode, setLeftCurrencyCode] = useState('AUD');
+  const [rightCurrencyCode, setRightCurrencyCode] = useState('USD');
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickingSide, setPickingSide] = useState<'left' | 'right' | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const leftCurrency = getCurrencyByCode(leftCurrencyCode);
+  const rightCurrency = getCurrencyByCode(rightCurrencyCode);
 
   // Animation for the swap bulge
   const swapScale = useSharedValue(1);
 
-  const leftBgColor = isAudToUsd ? AUD_COLOR : USD_COLOR;
-  const rightBgColor = isAudToUsd ? USD_COLOR : AUD_COLOR;
-  const leftTextColor = isAudToUsd ? '#000000' : '#FFFFFF';
-  const rightTextColor = isAudToUsd ? '#FFFFFF' : '#000000';
-  const leftSubTextColor = isAudToUsd ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)';
-  const rightSubTextColor = isAudToUsd ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.6)';
-  const leftOverlayColor = isAudToUsd ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)';
-  const leftBorderColor = isAudToUsd ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)';
+  const leftBgColor = leftCurrency.color;
+  const rightBgColor = rightCurrency.color;
+  
+  const isLight = (hex: string) => {
+    const c = hex.substring(1);
+    const rgb = parseInt(c, 16);
+    const r = (rgb >> 16) & 0xff;
+    const g = (rgb >> 8) & 0xff;
+    const b = (rgb >> 0) & 0xff;
+    const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+    return luma > 165; // Slightly higher threshold for better readability
+  };
+
+  const leftTextColor = isLight(leftBgColor) ? '#000000' : '#FFFFFF';
+  const rightTextColor = isLight(rightBgColor) ? '#000000' : '#FFFFFF';
+  const leftSubTextColor = isLight(leftBgColor) ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
+  const rightSubTextColor = isLight(rightBgColor) ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
+  const leftOverlayColor = isLight(leftBgColor) ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.08)';
+  const leftBorderColor = isLight(leftBgColor) ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.15)';
 
   const fetchRate = async () => {
     try {
-      const from = isAudToUsd ? 'AUD' : 'USD';
-      const to = isAudToUsd ? 'USD' : 'AUD';
-      const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${from}`);
+      const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${leftCurrencyCode}`);
       const data = await response.json();
-      setExchangeRate(data.rates[to]);
-      console.log(exchangeRate)
+      setExchangeRate(data.rates[rightCurrencyCode]);
     } catch (error) {
       console.error('Error fetching rate', error);
-      // Fallbacks roughly matching the image
-      setExchangeRate(isAudToUsd ? 0.65 : 1.54);
+      setExchangeRate(1.0);
     }
   };
 
   useEffect(() => {
     fetchRate();
-  }, [isAudToUsd]);
+  }, [leftCurrencyCode, rightCurrencyCode]);
 
   useEffect(() => {
     if (exchangeRate !== null) {
@@ -82,55 +93,83 @@ export default function Index() {
       withTiming(0.8, { duration: 100 }),
       withSpring(1)
     );
-    setIsAudToUsd(!isAudToUsd);
+    const temp = leftCurrencyCode;
+    setLeftCurrencyCode(rightCurrencyCode);
+    setRightCurrencyCode(temp);
     setAmount('0');
   };
 
-  const animatedBulgeStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { scale: swapScale.value }
-      ],
-    };
-  });
+  const openPicker = (side: 'left' | 'right') => {
+    setPickingSide(side);
+    setSearchQuery('');
+    setShowPicker(true);
+  };
+
+  const selectCurrency = (currency: Currency) => {
+    if (pickingSide === 'left') {
+      setLeftCurrencyCode(currency.code);
+    } else {
+      setRightCurrencyCode(currency.code);
+    }
+    setShowPicker(false);
+  };
+
+  const filteredCurrencies = useMemo(() => {
+    if (!searchQuery) return CURRENCIES;
+    return CURRENCIES.filter(c => 
+      c.code.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      c.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [searchQuery]);
+
+  const animatedBulgeStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: swapScale.value }],
+  }));
 
   return (
     <View style={[styles.container, { backgroundColor: leftBgColor }]}>
-      <StatusBar barStyle={isAudToUsd ? "dark-content" : "light-content"} backgroundColor="transparent" translucent />
+      <StatusBar barStyle={isLight(leftBgColor) ? "dark-content" : "light-content"} backgroundColor="transparent" translucent />
       
-      {/* Top Split Panels */}
       <View style={styles.splitContainer}>
-        
         {/* LEFT PANEL */}
-        <View style={[styles.panel, { backgroundColor: leftBgColor, paddingTop: insets.top }]}>
+        <Pressable 
+          onPress={() => openPicker('left')}
+          style={[styles.panel, { backgroundColor: leftBgColor, paddingTop: insets.top }]}
+        >
           <View style={styles.headerRowLeft}>
-            <Text style={[styles.headerLogo, { color: leftTextColor }]}>AUDxUSD</Text>
+            <Text style={[styles.headerLogo, { color: leftTextColor }]}>CONVERTx</Text>
           </View>
           <View style={styles.currencyDisplay}>
             <View style={styles.currencyLabelRow}>
-               <Text style={styles.flag}>{isAudToUsd ? '🇦🇺' : '🇺🇸'}</Text>
-               <Text style={[styles.currencyLabel, { color: leftSubTextColor }]}>{isAudToUsd ? 'AUD' : 'USD'}</Text>
+               <Text style={styles.flagIcon}>{leftCurrency.flag}</Text>
+               <Text style={[styles.currencyLabel, { color: leftSubTextColor }]}>{leftCurrency.code}</Text>
+               <Ionicons name="chevron-down" size={14} color={leftSubTextColor} style={{ marginLeft: 4 }} />
             </View>
             <Text style={[styles.amountText, { color: leftTextColor }]} numberOfLines={1} adjustsFontSizeToFit>
-              ${formatNumber(amount)}
+              {formatNumber(amount)}
             </Text>
           </View>
-        </View>
+        </Pressable>
 
         {/* RIGHT PANEL */}
-        <View style={[styles.panel, { backgroundColor: rightBgColor, paddingTop: insets.top }]}>
+        <Pressable 
+          onPress={() => openPicker('right')}
+          style={[styles.panel, { backgroundColor: rightBgColor, paddingTop: insets.top }]}
+        >
           <View style={styles.headerRowRight}>
+            <Ionicons name="swap-horizontal" size={18} color={rightSubTextColor} />
           </View>
           <View style={styles.currencyDisplay}>
             <View style={styles.currencyLabelRow}>
-               {/* No flag strictly in the right panel image usually, but adding for clarity */}
-               <Text style={[styles.currencyLabel, { color: rightSubTextColor }]}>{isAudToUsd ? 'USD' : 'AUD'}</Text>
+               <Text style={styles.flagIcon}>{rightCurrency.flag}</Text>
+               <Text style={[styles.currencyLabel, { color: rightSubTextColor }]}>{rightCurrency.code}</Text>
+               <Ionicons name="chevron-down" size={14} color={rightSubTextColor} style={{ marginLeft: 4 }} />
             </View>
             <Text style={[styles.amountTextRight, { color: rightTextColor }]} numberOfLines={1} adjustsFontSizeToFit>
-              ${formatNumber(convertedAmount)}
+              {formatNumber(convertedAmount)}
             </Text>
           </View>
-        </View>
+        </Pressable>
 
         {/* CENTER SWAP BULGE */}
         <View style={styles.swapWrapper}>
@@ -144,17 +183,14 @@ export default function Index() {
 
       {/* BOTTOM NUMPAD */}
       <View style={[styles.numpadContainer, { backgroundColor: leftBgColor, paddingBottom: insets.bottom + 10 }]}>
-        
-        {/* Operator Row */}
         <View style={[styles.operatorRow, { backgroundColor: leftOverlayColor }]}>
-          {['+', '×', '+', '-'].map((op, i) => ( // Using the exact operators from the user's reference image
+          {['+', '×', '÷', '-'].map((op, i) => ( 
             <Pressable key={i} style={[styles.opButton, { borderColor: leftBorderColor }]}>
               <Text style={[styles.opText, { color: leftTextColor }]}>{op}</Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Numpad Grid */}
         <View style={styles.keypadGrid}>
           {[
             ['1', '2', '3'],
@@ -173,7 +209,7 @@ export default function Index() {
                   ]}
                 >
                   {key === '⌫' ? (
-                    <Ionicons name="backspace-outline" size={20} color={leftTextColor} />
+                    <Ionicons name="backspace-outline" size={24} color={leftTextColor} />
                   ) : (
                     <Text style={[styles.keyText, { color: leftTextColor }]}>{key}</Text>
                   )}
@@ -182,8 +218,62 @@ export default function Index() {
             </View>
           ))}
         </View>
-
       </View>
+
+      {/* CURRENCY PICKER MODAL */}
+      <Modal
+        visible={showPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBlur} onPress={() => setShowPicker(false)} />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Currency</Text>
+              <Pressable onPress={() => setShowPicker(false)} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#000" />
+              </Pressable>
+            </View>
+            
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={20} color="#999" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search currency..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <FlatList
+              data={filteredCurrencies}
+              keyExtractor={(item) => item.code}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <Pressable 
+                  style={styles.currencyItem}
+                  onPress={() => selectCurrency(item)}
+                >
+                  <View style={[styles.itemIcon, { backgroundColor: item.color }]}>
+                    <Text style={styles.itemFlag}>{item.flag}</Text>
+                  </View>
+                  <View style={styles.itemTextContainer}>
+                    <Text style={styles.itemCode}>{item.code}</Text>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                  </View>
+                  {(pickingSide === 'left' ? leftCurrencyCode : rightCurrencyCode) === item.code && (
+                    <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                  )}
+                </Pressable>
+              )}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -200,7 +290,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     justifyContent: 'space-between',
-    paddingBottom: 24,
+    paddingBottom: 30,
   },
   headerRowLeft: {
     paddingTop: 14,
@@ -211,15 +301,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   headerLogo: {
-    color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
     letterSpacing: -0.5,
-  },
-  headerSettings: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 16,
-    fontWeight: '500',
   },
   currencyDisplay: {
     alignItems: 'flex-start',
@@ -227,45 +311,44 @@ const styles = StyleSheet.create({
   currencyLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  flag: {
-    fontSize: 14,
-    marginRight: 4,
+  flagIcon: {
+    fontSize: 16,
+    marginRight: 6,
   },
   currencyLabel: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 18,
+    fontWeight: '600',
   },
   amountText: {
-    color: '#FFFFFF',
-    fontSize: 38,
-    fontWeight: '500',
-    letterSpacing: -0.5,
+    fontSize: 42,
+    fontWeight: '300',
+    letterSpacing: -1,
   },
   amountTextRight: {
-    color: '#FFFFFF',
-    fontSize: 38,
-    fontWeight: '600',
-    letterSpacing: -0.5,
+    fontSize: 42,
+    fontWeight: '500',
+    letterSpacing: -1,
   },
   swapWrapper: {
     position: 'absolute',
     left: '50%',
-    bottom: 52, // Align roughly with where the middle of the currency text sits
+    bottom: 52, 
     zIndex: 10,
-    transform: [{ translateY: 25 }],
+    transform: [{ translateX: -23 }, { translateY: 23 }],
   },
   swapBulge: {
-    position: 'absolute', // Ensures we can perfectly center it
-    left: -25, // Move left by half width to center on the split
-    top: -25, // Move up by half height to center on the bottom line calculation
     width: 46,
     height: 46,
     borderRadius: 23,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   swapButton: {
     width: '100%',
@@ -274,15 +357,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   numpadContainer: {
+    paddingTop: 0,
   },
   operatorRow: {
     flexDirection: 'row',
-    height: 48,
+    height: 54,
   },
   opButton: {
     flex: 1,
@@ -291,28 +375,108 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
   },
   opText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '500',
+    fontSize: 20,
+    fontWeight: '400',
   },
   keypadGrid: {
-    paddingHorizontal: 10,
-    paddingTop: 20,
+    paddingHorizontal: 15,
+    paddingTop: 25,
   },
   keypadRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   keyButton: {
     flex: 1,
-    height: 64, // Taller buttons for easy thumb tapping as per image proportions
+    height: 60, 
     justifyContent: 'center',
     alignItems: 'center',
   },
   keyText: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '400',
+    fontSize: 30,
+    fontWeight: '300',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBlur: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    height: '85%',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1A1A1A',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#1A1A1A',
+    fontWeight: '500',
+  },
+  currencyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  itemIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  itemFlag: {
+    fontSize: 22,
+  },
+  itemTextContainer: {
+    flex: 1,
+  },
+  itemCode: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  itemName: {
+    fontSize: 14,
+    color: '#717171',
+    marginTop: 1,
   },
 });
