@@ -122,6 +122,18 @@ export default function Index() {
     );
   }, [searchQuery]);
 
+  const getDynamicFontSize = (text: string) => {
+    const len = text.length;
+    if (len <= 7) return 42;
+    if (len <= 10) return 34;
+    if (len <= 13) return 26;
+    if (len <= 16) return 20;
+    return 16;
+  };
+
+  const formattedAmount = formatNumber(amount);
+  const formattedConverted = formatNumber(convertedAmount);
+
   const animatedBulgeStyle = useAnimatedStyle(() => ({
     transform: [{ scale: swapScale.value }],
   }));
@@ -148,8 +160,15 @@ export default function Index() {
                <Text style={[styles.currencyLabel, { color: leftSubTextColor }]}>{leftCurrency.code}</Text>
                <Ionicons name="chevron-down" size={14} color={leftSubTextColor} style={{ marginLeft: 4 }} />
             </View>
-            <Text style={[styles.amountText, { color: leftTextColor }]} numberOfLines={1} adjustsFontSizeToFit>
-              {formatNumber(amount)}
+            <Text 
+              style={[
+                styles.amountText, 
+                { color: leftTextColor, fontSize: getDynamicFontSize(formattedAmount) }
+              ]} 
+              numberOfLines={1} 
+              adjustsFontSizeToFit
+            >
+              {formattedAmount}
             </Text>
           </View>
         </Pressable>
@@ -171,8 +190,15 @@ export default function Index() {
                <Text style={[styles.currencyLabel, { color: rightSubTextColor }]}>{rightCurrency.code}</Text>
                <Ionicons name="chevron-down" size={14} color={rightSubTextColor} style={{ marginLeft: 4 }} />
             </View>
-            <Text style={[styles.amountTextRight, { color: rightTextColor }]} numberOfLines={1} adjustsFontSizeToFit>
-              {formatNumber(convertedAmount)}
+            <Text 
+              style={[
+                styles.amountTextRight, 
+                { color: rightTextColor, fontSize: getDynamicFontSize(formattedConverted) }
+              ]} 
+              numberOfLines={1} 
+              adjustsFontSizeToFit
+            >
+              {formattedConverted}
             </Text>
           </View>
         </Pressable>
@@ -316,6 +342,7 @@ const styles = StyleSheet.create({
   },
   currencyDisplay: {
     alignItems: 'flex-start',
+    width: '100%',
   },
   currencyLabelRow: {
     flexDirection: 'row',
